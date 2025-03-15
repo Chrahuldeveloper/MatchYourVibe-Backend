@@ -1,8 +1,9 @@
 const signupRouter = require("express").Router();
 const db = require("../db/ConnectDb");
-signupRouter.get("/signup", (req, res) => {
-  res.send("signup user");
-});
+const jwt = require("jsonwebtoken");
+
+const JWT_SECRET =
+  "dskvs23rk3nroi82rwef0@w019i2r9ks@j01v0iwjug320220398sddskvs23rk3nroi82rwef0";
 
 const checkEmail = async (email) => {
   try {
@@ -22,16 +23,20 @@ signupRouter.post("/signup", async (req, res) => {
     if (emailExists) {
       return res.status(400).send("Email already exists");
     }
-    const insertQuery =
-      "INSERT INTO users (id,email) VALUES ($1, $2) RETURNING *";
 
-    const values = [1, Email];
+    const insertQuery = "INSERT INTO users (email) VALUES ($1) RETURNING *";
+
+    const values = [Email];
 
     const result = await db.query(insertQuery, values);
 
     console.log("user saved ", result.rows);
-
-    return res.sendStatus(200);
+    const token = jwt.sign({ email: Email }, JWT_SECRET, {
+      expiresIn: "1h",
+    });
+    return res
+      .status(201)
+      .json({ message: "User created successfully", token });
   } catch (error) {
     res.send(error.message);
     console.log(error);
