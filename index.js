@@ -3,7 +3,7 @@ const app = express();
 const cors = require("cors");
 const { createServer } = require("http");
 const { Server } = require("socket.io");
-const Queue = require("./queue"); 
+const Queue = require("./queue");
 app.use(cors());
 app.use(express.json());
 
@@ -20,35 +20,34 @@ const waitingUsers = new Queue();
 io.on("connection", (socket) => {
   console.log("New user connected:", socket.id);
 
-  socket.on("registerPeer", (peerId) => {
-    console.log(`User registered with Peer ID: ${peerId}`);
+  waitingUsers.enqueue(socket.id);
 
-    waitingUsers.enqueue({ socketId: socket.id, peerId });
+  console.log(waitingUsers)
 
-    if (waitingUsers.size() >= 2) {
-      const user1 = waitingUsers.dequeue();
-      const user2 = waitingUsers.dequeue();
-
-      console.log(`Matching ${user1.peerId} with ${user2.peerId}`);
-
-      io.to(user1.socketId).emit("matchFound", { peerId: user2.peerId });
-      io.to(user2.socketId).emit("matchFound", { peerId: user1.peerId });
-    }
+  if (waitingUsers.size >= 2) {
+    const user1 = waitingUsers.dequeue();
+    const user2 = waitingUsers.dequeue();
+    io.to(user1).emit("paired", user2);
+    io.to(user2).emit("paired", user1);  
+  }
+  socket.on("offer", (offer, toSocketId) => {
+    console.log(`Sending offer from ${socket.id} to ${toSocketId}`);
+    io.to(toSocketId).emit("offer", offer, socket.id);  
   });
 
+  socket.on("answer", (answer, toSocketId) => {
+    console.log(`Sending answer from ${socket.id} to ${toSocketId}`);
+    io.to(toSocketId).emit("answer", answer, socket.id);  
+  });
+
+  socket.on("ice-candidate", (candidate, toSocketId) => {
+    console.log(`Sending ICE candidate from ${socket.id} to ${toSocketId}`);
+    io.to(toSocketId).emit("ice-candidate", candidate, socket.id);  // Send ICE candidate
+  });
+
+  // Handle user disconnection
   socket.on("disconnect", () => {
     console.log("User disconnected:", socket.id);
-
-    let updatedQueue = new Queue();
-    while (!waitingUsers.isEmpty()) {
-      let user = waitingUsers.dequeue();
-      if (user.socketId !== socket.id) {
-        updatedQueue.enqueue(user);
-      }
-    }
-    waitingUsers.items = updatedQueue.items; 
-
-    socket.broadcast.emit("callEnded");
   });
 });
 
